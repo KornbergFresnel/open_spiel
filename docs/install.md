@@ -12,7 +12,16 @@ E.g. on Ubuntu or Debian:
 ```bash
 # Check to see if you have the necessary tools for building OpenSpiel:
 cmake --version        # Must be >= 3.12
+wget https://cmake.org/files/v3.12/cmake-3.12.0-Linux-x86_64.tar.gz
+tar -zxvf cmake-3.12.0-Linux-x86_64.tar.gz
+sudo mv cmake-3.12.0-Linux-x86_64 /usr/local/bin
+echo "export PATH=/usr/local/bin/cmake-3.12.0-Linux-x86_64/bin" >> ~/.bashrc
+source ~/.bashrc
+
 clang++ --version      # Must be >= 7.0.0
+wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+sudo apt-add-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-7 main"
+sudo apt-get update && sudo apt-get install clang-7
 python3-config --help
 
 # If not, run this line to install them.
