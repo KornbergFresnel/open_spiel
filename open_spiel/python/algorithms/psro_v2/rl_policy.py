@@ -102,6 +102,7 @@ def rl_policy_factory(rl_class):
       # current policy's weights are frozen. For more details, see the freeze()
       # method.
       is_evaluation = (is_evaluation) or (self._frozen)
+      # NOTE(ming): 4. here is the process of policy training
       return self._policy.step(time_step, is_evaluation)
 
     def freeze(self):
