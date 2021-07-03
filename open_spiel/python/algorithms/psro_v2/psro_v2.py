@@ -326,6 +326,7 @@ class PSROSolver(abstract_meta_trainer.AbstractMetaTrainer):
             "policy": pol,
             "total_policies": total_policies,
             "current_player": current_player,
+            # NOTE(ming): 1. here specify the sample distribution of opponent agents.
             "probabilities_of_playing_policies": new_probabilities
         }
         training_parameters[current_player].append(new_parameter)

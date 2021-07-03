@@ -71,6 +71,7 @@ def random_count_weighted_choice(count_weight):
   return chosen_index
 
 
+# TODO(ming): modify it!
 class RLOracle(optimization_oracle.AbstractOracle):
   """Oracle handling Approximate Best Responses computation."""
 
@@ -118,13 +119,13 @@ class RLOracle(optimization_oracle.AbstractOracle):
       else:
         player_id = time_step.observations["current_player"]
 
-        # is_evaluation is a boolean that, when False, lets policies train. The
-        # setting of PSRO requires that all policies be static aside from those
-        # being trained by the oracle. is_evaluation could be used to prevent
-        # policies from training, yet we have opted for adding frozen attributes
-        # that prevents policies from training, for all values of is_evaluation.
-        # Since all policies returned by the oracle are frozen before being
-        # returned, only currently-trained policies can effectively learn.
+        # XXX(ming): IMPORTANT - is_evaluation is a boolean that, when False, lets policies train. The
+        #   setting of PSRO requires that all policies be static aside from those
+        #   being trained by the oracle. is_evaluation could be used to prevent
+        #   policies from training, yet we have opted for adding frozen attributes
+        #   that prevents policies from training, for all values of is_evaluation.
+        #   Since all policies returned by the oracle are frozen before being
+        #   returned, only currently-trained policies can effectively learn.
         agent_output = agents[player_id].step(
             time_step, is_evaluation=is_evaluation)
         action_list = [agent_output.action]
@@ -180,6 +181,8 @@ class RLOracle(optimization_oracle.AbstractOracle):
 
     # Sample other players' policies.
     total_policies = agent_chosen_dict["total_policies"]
+    # NOTE(ming): 3. here, the sampler will be created from the given probabilities
+    #   currently, the sampler could be marginal or joint policy.
     probabilities_of_playing_policies = agent_chosen_dict[
         "probabilities_of_playing_policies"]
     episode_policies = strategy_sampler(total_policies,
@@ -277,10 +280,13 @@ class RLOracle(optimization_oracle.AbstractOracle):
 
     # TODO(author4): Look into multithreading.
     while not self._has_terminated(episodes_per_oracle):
+      # NOTE(ming): 2. here is the training stage, the transferred training parameters are sent to sampler
+      #   probabilities_of_playing_policies will be used
       agents, indexes = self.sample_policies_for_episode(
           new_policies, training_parameters, episodes_per_oracle,
           strategy_sampler)
       self._rollout(game, agents, **oracle_specific_execution_kwargs)
+      # NOTE(ming): 3. decentralized training against with other agents, to get BRs.
       episodes_per_oracle = update_episodes_per_oracles(episodes_per_oracle,
                                                         indexes)
     # Freeze the new policies to keep their weights static. This allows us to
