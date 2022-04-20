@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,7 +37,7 @@ namespace {
 
 constexpr int kInvalidHistoryPlayer = -300;
 constexpr int kInvalidHistoryAction = -301;
-constexpr double kUtilitySumTolerance = 1e-9;
+constexpr double kRewardEpsilon = 1e-9;
 
 // Information about the simulation history. Used to track past states and
 // actions for rolling back simulations via UndoAction, and check History.
@@ -192,17 +192,16 @@ void CheckReturnsSum(const Game& game, const State& state) {
 
   switch (game.GetType().utility) {
     case GameType::Utility::kZeroSum: {
-      SPIEL_CHECK_TRUE(Near(rsum, 0.0, kUtilitySumTolerance));
+      SPIEL_CHECK_TRUE(Near(rsum, 0.0, kRewardEpsilon));
       break;
     }
     case GameType::Utility::kConstantSum: {
-      SPIEL_CHECK_TRUE(Near(rsum, game.UtilitySum(), kUtilitySumTolerance));
+      SPIEL_CHECK_TRUE(Near(rsum, game.UtilitySum(), kRewardEpsilon));
       break;
     }
     case GameType::Utility::kIdentical: {
       for (int i = 1; i < returns.size(); ++i) {
-        SPIEL_CHECK_TRUE(
-            Near(returns[i], returns[i - 1], kUtilitySumTolerance));
+        SPIEL_CHECK_TRUE(Near(returns[i], returns[i - 1], kRewardEpsilon));
       }
       break;
     }
@@ -255,11 +254,26 @@ void CheckObservables(const Game& game,
   }
 }
 
+// This is used for mean-field games.
+std::vector<double> RandomDistribution(int num_states, std::mt19937* rng) {
+  std::uniform_real_distribution<double> rand(0, 1);
+  std::vector<double> distrib;
+  distrib.reserve(num_states);
+  for (int i = 0; i < num_states; ++i) {
+    distrib.push_back(rand(*rng));
+  }
+  double sum = std::accumulate(distrib.begin(), distrib.end(), 0.);
+  for (int i = 0; i < num_states; ++i) {
+    distrib[i] /= sum;
+  }
+  return distrib;
+}
+
 void RandomSimulation(std::mt19937* rng, const Game& game, bool undo,
                       bool serialize, bool verbose, bool mask_test,
                       std::shared_ptr<Observer> observer,  // Can be nullptr
-                      std::function<void(const State&)> state_checker_fn
-                     ) {
+                      std::function<void(const State&)> state_checker_fn,
+                      int mean_field_population = -1) {
   std::unique_ptr<Observation> observation =
       observer == nullptr ? nullptr
                           : std::make_unique<Observation>(game, observer);
@@ -289,13 +303,19 @@ void RandomSimulation(std::mt19937* rng, const Game& game, bool undo,
 
     std::cout << "Starting new game.." << std::endl;
   }
-  std::unique_ptr<open_spiel::State> state = game.NewInitialState();
+  std::unique_ptr<open_spiel::State> state;
+  if (mean_field_population == -1) {
+    state = game.NewInitialState();
+  } else {
+    state = game.NewInitialStateForPopulation(mean_field_population);
+  }
 
   if (verbose) {
     std::cout << "Initial state:" << std::endl;
     std::cout << "State:" << std::endl << state->ToString() << std::endl;
   }
   int game_length = 0;
+  int num_moves = 0;
 
   while (!state->IsTerminal()) {
     state_checker_fn(*state);
@@ -311,6 +331,11 @@ void RandomSimulation(std::mt19937* rng, const Game& game, bool undo,
     std::unique_ptr<open_spiel::State> state_copy = state->Clone();
     SPIEL_CHECK_EQ(state->ToString(), state_copy->ToString());
     SPIEL_CHECK_EQ(state->History(), state_copy->History());
+
+    if (game.GetType().dynamics == GameType::Dynamics::kMeanField) {
+      SPIEL_CHECK_LT(state->MoveNumber(), game.MaxMoveNumber());
+      SPIEL_CHECK_EQ(state->MoveNumber(), num_moves);
+    }
 
     if (serialize && (history.size() < 10 || IsPowerOfTwo(history.size()))) {
       TestSerializeDeserialize(game, state.get());
@@ -335,14 +360,23 @@ void RandomSimulation(std::mt19937* rng, const Game& game, bool undo,
       if (undo && (history.size() < 10 || IsPowerOfTwo(history.size()))) {
         TestUndo(state->Clone(), history);
       }
+      num_moves++;
     } else if (state->CurrentPlayer() == open_spiel::kSimultaneousPlayerId) {
       std::vector<double> rewards = state->Rewards();
+      std::vector<double> returns = state->Returns();
       SPIEL_CHECK_EQ(rewards.size(), game.NumPlayers());
-      if (verbose) {
-        std::cout << "Rewards: " << absl::StrJoin(rewards, " ") << std::endl;
-      }
+      SPIEL_CHECK_EQ(returns.size(), game.NumPlayers());
       for (auto p = Player{0}; p < game.NumPlayers(); ++p) {
         episode_returns[p] += rewards[p];
+      }
+      if (verbose) {
+        std::cout << "Rewards: " << absl::StrJoin(rewards, " ") << std::endl;
+        std::cout << "Returns: " << absl::StrJoin(returns, " ") << std::endl;
+        std::cout << "Sum Rewards: " << absl::StrJoin(episode_returns, " ")
+                  << std::endl;
+      }
+      for (auto p = Player{0}; p < game.NumPlayers(); ++p) {
+        SPIEL_CHECK_TRUE(Near(episode_returns[p], returns[p], kRewardEpsilon));
       }
 
       // Players choose simultaneously.
@@ -372,14 +406,25 @@ void RandomSimulation(std::mt19937* rng, const Game& game, bool undo,
 
       ApplyActionTestClone(game, state.get(), joint_action);
       game_length++;
+    } else if (state->CurrentPlayer() == open_spiel::kMeanFieldPlayerId) {
+      auto support = state->DistributionSupport();
+      state->UpdateDistribution(RandomDistribution(support.size(), rng));
     } else {
       std::vector<double> rewards = state->Rewards();
+      std::vector<double> returns = state->Returns();
       SPIEL_CHECK_EQ(rewards.size(), game.NumPlayers());
-      if (verbose) {
-        std::cout << "Rewards: " << absl::StrJoin(rewards, " ") << std::endl;
-      }
+      SPIEL_CHECK_EQ(returns.size(), game.NumPlayers());
       for (auto p = Player{0}; p < game.NumPlayers(); ++p) {
         episode_returns[p] += rewards[p];
+      }
+      if (verbose) {
+        std::cout << "Rewards: " << absl::StrJoin(rewards, " ") << std::endl;
+        std::cout << "Returns: " << absl::StrJoin(returns, " ") << std::endl;
+        std::cout << "Sum Rewards: " << absl::StrJoin(episode_returns, " ")
+                  << std::endl;
+      }
+      for (auto p = Player{0}; p < game.NumPlayers(); ++p) {
+        SPIEL_CHECK_TRUE(Near(episode_returns[p], returns[p], kRewardEpsilon));
       }
 
       // Decision node.
@@ -405,6 +450,7 @@ void RandomSimulation(std::mt19937* rng, const Game& game, bool undo,
       history.emplace_back(state->Clone(), player, action);
       ApplyActionTestClone(game, state.get(), action);
       game_length++;
+      num_moves++;
 
       if (undo && (history.size() < 10 || IsPowerOfTwo(history.size()))) {
         TestUndo(state->Clone(), history);
@@ -457,9 +503,10 @@ void RandomSimulation(std::mt19937* rng, const Game& game, bool undo,
 }
 
 // Perform sims random simulations of the specified game.
-void RandomSimTest(const Game& game, int num_sims, bool serialize,
-                   bool verbose, bool mask_test,
-                   const std::function<void(const State&)>& state_checker_fn) {
+void RandomSimTest(const Game& game, int num_sims, bool serialize, bool verbose,
+                   bool mask_test,
+                   const std::function<void(const State&)>& state_checker_fn,
+                   int mean_field_population) {
   std::mt19937 rng;
   if (verbose) {
     std::cout << "\nRandomSimTest, game = " << game.GetType().short_name
@@ -467,7 +514,8 @@ void RandomSimTest(const Game& game, int num_sims, bool serialize,
   }
   for (int sim = 0; sim < num_sims; ++sim) {
     RandomSimulation(&rng, game, /*undo=*/false, /*serialize=*/serialize,
-                     verbose, mask_test, nullptr, state_checker_fn);
+                     verbose, mask_test, nullptr, state_checker_fn,
+                     mean_field_population);
   }
 }
 

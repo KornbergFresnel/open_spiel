@@ -43,7 +43,8 @@ fi
 # Load all the build settings.
 source "${MYDIR}/open_spiel/scripts/global_variables.sh"
 
-# Specify a download cache directory for external dependencies.
+# Specify a download cache directory for all external dependencies.
+# If a dependency version is updated you may need to clean this directory.
 DEFAULT_DOWNLOAD_CACHE_DIR="$MYDIR/download_cache"
 
 # Use the ENV variable if defined, or the default location otherwise.
@@ -72,30 +73,52 @@ if [[ ! -x `which git` ]]; then
   fi
 fi
 
+# Cache git clone of the dependencies.
+function cached_clone() {
+  # Extract args
+  ALL_ARGS_EXCEPT_LAST="${@:1:$#-1}"
+  LAST_ARG="${@: -1}"
+  TARGET_DIR="$LAST_ARG"
+
+  # Used for naming the cache directory
+  CACHED_TARGET="${DOWNLOAD_CACHE_DIR}/$(basename "$TARGET_DIR")"
+
+  if [[ ! -d "$CACHED_TARGET" ]]; then
+    git clone $ALL_ARGS_EXCEPT_LAST "$CACHED_TARGET"
+  fi
+  cp -r "$CACHED_TARGET" "$TARGET_DIR"
+}
+
 # For the external dependencies, we use fixed releases for the repositories that
 # the OpenSpiel team do not control.
 # Feel free to upgrade the version after having checked it works.
 
-[[ -d "./pybind11" ]] || git clone -b smart_holder --single-branch --depth 1 https://github.com/pybind/pybind11.git
+DIR="./pybind11"
+if [[ ! -d ${DIR} ]]; then
+  cached_clone -b smart_holder --single-branch --depth 1 https://github.com/pybind/pybind11.git ${DIR}
+fi
+
 # The official https://github.com/dds-bridge/dds.git seems to not accept PR,
 # so we have forked it.
-[[ -d open_spiel/games/bridge/double_dummy_solver ]] || \
-  git clone -b 'develop' --single-branch --depth 1 https://github.com/jblespiau/dds.git  \
-  open_spiel/games/bridge/double_dummy_solver
+DIR="open_spiel/games/bridge/double_dummy_solver"
+if [[ ! -d ${DIR} ]]; then
+  cached_clone -b 'develop' --single-branch --depth 1 https://github.com/jblespiau/dds.git ${DIR}
+fi
 
-if [[ ! -d open_spiel/abseil-cpp ]]; then
-  git clone -b '20200923.3' --single-branch --depth 1 https://github.com/abseil/abseil-cpp.git open_spiel/abseil-cpp
+DIR="open_spiel/abseil-cpp"
+if [[ ! -d ${DIR} ]]; then
+  cached_clone -b '20211102.0' --single-branch --depth 1 https://github.com/abseil/abseil-cpp.git open_spiel/abseil-cpp
 fi
 
 # Optional dependencies.
 DIR="open_spiel/games/hanabi/hanabi-learning-environment"
 if [[ ${OPEN_SPIEL_BUILD_WITH_HANABI:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
-  git clone -b 'master' --single-branch --depth 15 https://github.com/deepmind/hanabi-learning-environment.git ${DIR}
+  cached_clone -b 'master' --single-branch --depth 15 https://github.com/deepmind/hanabi-learning-environment.git ${DIR}
   # We checkout a specific CL to prevent future breakage due to changes upstream
   # The repository is very infrequently updated, thus the last 15 commits should
   # be ok for a long time.
   pushd ${DIR}
-  git checkout  'b31c973'
+  git checkout '54e7959'
   popd
 fi
 
@@ -104,27 +127,27 @@ fi
 # with the code compiled as C++ within a namespace.
 DIR="open_spiel/games/universal_poker/acpc"
 if [[ ${OPEN_SPIEL_BUILD_WITH_ACPC:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
-  git clone -b 'master' --single-branch --depth 1  https://github.com/jblespiau/project_acpc_server.git ${DIR}
+  cached_clone -b 'master' --single-branch --depth 1  https://github.com/jblespiau/project_acpc_server.git ${DIR}
 fi
 
 # Add EIGEN template library for linear algebra.
 # http://eigen.tuxfamily.org/index.php?title=Main_Page
 DIR="open_spiel/eigen/libeigen"
 if [[ ${OPEN_SPIEL_BUILD_WITH_EIGEN:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
-  git clone -b '3.3.7' --single-branch --depth 1  https://gitlab.com/libeigen/eigen.git ${DIR}
+  cached_clone -b '3.3.7' --single-branch --depth 1  https://gitlab.com/libeigen/eigen.git ${DIR}
 fi
 
 # This GitHub repository contains Nathan Sturtevant's state of the art
 # Hearts program xinxin.
 DIR="open_spiel/bots/xinxin/hearts"
 if [[ ${OPEN_SPIEL_BUILD_WITH_XINXIN:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
-  git clone -b 'master' --single-branch --depth 1  https://github.com/nathansttt/hearts.git ${DIR}
+  cached_clone -b 'master' --single-branch --depth 1  https://github.com/nathansttt/hearts.git ${DIR}
 fi
 
 # This GitHub repository contains bots from the RoShamBo Programming Competition
 DIR="open_spiel/bots/roshambo/roshambo"
 if [[ ${OPEN_SPIEL_BUILD_WITH_ROSHAMBO:-"ON"} == "ON" ]] && [[ ! -d ${DIR} ]]; then
-  git clone -b 'open_spiel' --single-branch --depth 1  https://github.com/jhtschultz/roshambo.git ${DIR}
+  cached_clone -b 'open_spiel' --single-branch --depth 1  https://github.com/jhtschultz/roshambo.git ${DIR}
 fi
 
 # This GitHub repository allows for serialization of custom C++ objects.
@@ -202,6 +225,9 @@ if [[ "$OSTYPE" == "linux-gnu" ]]; then
   if [[ ${OPEN_SPIEL_BUILD_WITH_GO:-"OFF"} == "ON" ]]; then
     EXT_DEPS="${EXT_DEPS} golang"
   fi
+  if [[ ${OPEN_SPIEL_BUILD_WITH_RUST:-"OFF"} == "ON" ]]; then
+    EXT_DEPS="${EXT_DEPS} rust-all cargo"
+  fi
 
   APT_GET=`which apt-get`
   if [ "$APT_GET" = "" ]
@@ -222,6 +248,9 @@ if [[ "$OSTYPE" == "linux-gnu" ]]; then
     echo "System wide packages missing. Installing them..."
     sudo apt-get -y update
     sudo apt-get -y install $EXT_DEPS
+  fi
+  if [[ ${OPEN_SPIEL_BUILD_WITH_RUST:-"OFF"} == "ON" ]]; then
+    cargo install bindgen
   fi
 
   if [[ "$TRAVIS" ]]; then
@@ -246,10 +275,14 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then  # Mac OSX
   if [[ ${OPEN_SPIEL_BUILD_WITH_GO:-"OFF"} == "ON" ]]; then
     [[ -x `which go` ]] || brew install golang || echo "** Warning: failed 'brew install golang' -- continuing"
   fi
+  if [[ ${OPEN_SPIEL_BUILD_WITH_RUST:-"OFF"} == "ON" ]]; then
+    [[ -x `which rustc` ]] || brew install rust || echo "** Warning: failed 'brew install rust' -- continuing"
+    cargo install bindgen
+  fi
 
   curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
   python3 get-pip.py
-  pip3 install virtualenv
+  python3 -m pip install virtualenv
 else
   echo "The OS '$OSTYPE' is not supported (Only Linux and MacOS is). " \
        "Feel free to contribute the install for a new OS."

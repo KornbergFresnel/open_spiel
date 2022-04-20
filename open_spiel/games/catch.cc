@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -163,19 +163,6 @@ void CatchState::ObservationTensor(Player player,
     view[{ball_row_, ball_col_}] = 1.0;
     view[{num_rows_ - 1, paddle_col_}] = 1.0;
   }
-}
-
-void CatchState::UndoAction(Player player, Action move) {
-  if (player == kChancePlayerId) {
-    initialized_ = false;
-    return;
-  }
-  int direction = move - 1;
-  paddle_col_ =
-      std::min(std::max(paddle_col_ - direction, 0), num_columns_ - 1);
-  --ball_row_;
-  history_.pop_back();
-  --move_number_;
 }
 
 std::unique_ptr<State> CatchState::Clone() const {

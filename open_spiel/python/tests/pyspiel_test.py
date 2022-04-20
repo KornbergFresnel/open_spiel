@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,10 +13,6 @@
 # limitations under the License.
 
 """Tests for open_spiel.python.pybind11.pyspiel."""
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import os
 from absl.testing import absltest
@@ -27,8 +23,10 @@ from open_spiel.python.mfg import games as mfgs  # pylint: disable=unused-import
 import pyspiel
 
 # Specify game names in alphabetical order, to make the test easier to read.
-EXPECTED_GAMES = set([
+EXPECTED_GAMES = frozenset([
+    "amazons",
     "backgammon",
+    "bargaining",
     "battleship",
     "blackjack",
     "blotto",
@@ -40,6 +38,7 @@ EXPECTED_GAMES = set([
     "cliff_walking",
     "clobber",
     "coin_game",
+    "colored_trails",
     "connect_four",
     "coop_box_pushing",
     "coop_to_1p",
@@ -74,9 +73,12 @@ EXPECTED_GAMES = set([
     "matrix_rpsw",
     "matrix_sh",
     "matrix_shapleys_game",
+    "mean_field_lin_quad",
     "mfg_crowd_modelling",
     "mfg_crowd_modelling_2d",
+    "mfg_garnet",
     "misere",
+    "morpion_solitaire",
     "negotiation",
     "nfg_game",
     "normal_form_extensive_game",
@@ -85,15 +87,21 @@ EXPECTED_GAMES = set([
     "othello",
     "oware",
     "pentago",
+    "pathfinding",
     "phantom_ttt",
     "phantom_ttt_ir",
     "pig",
+    "python_dynamic_routing",
     "python_iterated_prisoners_dilemma",
     "python_mfg_crowd_modelling",
+    "python_mfg_dynamic_routing",
+    "python_mfg_predator_prey",
     "python_kuhn_poker",
     "python_tic_tac_toe",
     "quoridor",
     "repeated_game",
+    "rbc",
+    "restricted_nash_response",
     "sheriff",
     "skat",
     "start_at",
@@ -106,6 +114,7 @@ EXPECTED_GAMES = set([
     "tiny_hanabi",
     "trade_comm",
     "turn_based_simultaneous_game",
+    "ultimate_tic_tac_toe",
     "y",
 ])
 
@@ -115,12 +124,14 @@ class PyspielTest(absltest.TestCase):
   def test_registered_names(self):
     game_names = pyspiel.registered_names()
 
-    expected = EXPECTED_GAMES
-    if os.environ.get("OPEN_SPIEL_BUILD_WITH_HANABI", "OFF") == "ON":
-      expected.add("hanabi")
-    if os.environ.get("OPEN_SPIEL_BUILD_WITH_ACPC", "OFF") == "ON":
-      expected.add("universal_poker")
-    expected = sorted(list(expected))
+    expected = list(EXPECTED_GAMES)
+    if (os.environ.get("OPEN_SPIEL_BUILD_WITH_HANABI", "OFF") == "ON" and
+        "hanabi" not in expected):
+      expected.append("hanabi")
+    if (os.environ.get("OPEN_SPIEL_BUILD_WITH_ACPC", "OFF") == "ON" and
+        "universal_poker" not in expected):
+      expected.append("universal_poker")
+    expected = sorted(expected)
     self.assertCountEqual(game_names, expected)
 
   def teste_default_loadable(self):
@@ -141,6 +152,7 @@ class PyspielTest(absltest.TestCase):
         "turn_based_simultaneous_game",
         "normal_form_extensive_game",
         "repeated_game",
+        "restricted_nash_response",
         "start_at",
     ]
     self.assertCountEqual(non_default_loadable, expected)
@@ -222,6 +234,33 @@ class PyspielTest(absltest.TestCase):
                     "z": False
                 }
             })
+
+  def test_game_parameters_to_string_empty(self):
+    self.assertEqual(pyspiel.game_parameters_to_string({}), "")
+
+  def test_game_parameters_to_string_simple(self):
+    self.assertEqual(pyspiel.game_parameters_to_string({"name": "foo"}),
+                     "foo()")
+
+  def test_game_parameters_to_string_with_options(self):
+    self.assertEqual(
+        pyspiel.game_parameters_to_string({
+            "name": "foo",
+            "x": 2,
+            "y": True
+        }), "foo(x=2,y=True)")
+
+  def test_game_parameters_to_string_with_subgame(self):
+    self.assertEqual(
+        pyspiel.game_parameters_to_string({
+            "name": "foo",
+            "x": 2,
+            "y": True,
+            "subgame": {
+                "name": "bar",
+                "z": False
+            }
+        }), "foo(subgame=bar(z=False),x=2,y=True)")
 
   def test_game_type(self):
     game_type = pyspiel.GameType(

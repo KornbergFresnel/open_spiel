@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,8 +24,6 @@ from open_spiel.python.algorithms import jpsro
 import pyspiel
 
 GAMES = (
-    "kuhn_poker_3p",
-    "trade_comm_2p_2i",
     "sheriff_2p_gabriele",
 )
 SWEEP_KWARGS = [
@@ -59,7 +57,7 @@ SWEEP_KWARGS = [
             ["mwcce"],
             [True, False])
 ]
-TEST_COUNT_LIMIT = 500
+TEST_COUNT_LIMIT = 100
 
 interval = len(SWEEP_KWARGS) // TEST_COUNT_LIMIT
 interval = interval if interval % 2 != 0 else interval + 1  # Odd interval.

@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -73,7 +73,7 @@ class _Observation:
     if self._observation.has_tensor():
       self.tensor = np.frombuffer(self._observation, np.float32)
       offset = 0
-      for tensor_info in self._observation.tensor_info():
+      for tensor_info in self._observation.tensors_info():
         size = np.product(tensor_info.shape, dtype=np.int64)
         values = self.tensor[offset:offset + size].reshape(tensor_info.shape)
         self.dict[tensor_info.name] = values

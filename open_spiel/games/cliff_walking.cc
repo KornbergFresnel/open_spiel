@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -155,30 +155,6 @@ void CliffWalkingState::InformationStateTensor(Player player,
   for (int i = 0; i < history_.size(); i++) {
     values[i * kNumActions + history_[i].action] = 1;
   }
-}
-
-void CliffWalkingState::UndoAction(Player player, Action move) {
-  switch (move) {
-    case RIGHT:
-      --player_col_;
-      break;
-    case UP:
-      ++player_row_;
-      break;
-    case LEFT:
-      ++player_col_;
-      break;
-    case DOWN:
-      --player_row_;
-      break;
-    default:
-      SpielFatalError("Unexpected action");
-  }
-  player_row_ = std::min(std::max(player_row_, 0), height_ - 1);
-  player_col_ = std::min(std::max(player_col_, 0), width_ - 1);
-  --time_counter_;
-  history_.pop_back();
-  --move_number_;
 }
 
 std::unique_ptr<State> CliffWalkingState::Clone() const {

@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -363,12 +363,9 @@ void LaserTagState::DoApplyAction(Action action_id) {
     }
 
     SPIEL_CHECK_NE(spawning_player_char, ' ');
-    if (field(grid_.spawn_points[spawn_loc].first,
-              grid_.spawn_points[spawn_loc].second) != '.') {
-      // Make sure this location is empty to prevent respawning of players in
-      // the same location
-      return;
-    }
+    SPIEL_CHECK_EQ(
+        field(grid_.spawn_points[spawn_loc].first,
+              grid_.spawn_points[spawn_loc].second), '.');
 
     SetField(grid_.spawn_points[spawn_loc].first,
              grid_.spawn_points[spawn_loc].second, spawning_player_char);
@@ -386,9 +383,12 @@ std::vector<Action> LaserTagState::LegalActions(int player) const {
   if (IsTerminal()) return {};
   if (IsChanceNode()) {
     if (!needs_respawn_.empty()) {
-      std::vector<Action> outcomes(grid_.spawn_points.size(), kInvalidAction);
+      std::vector<Action> outcomes;
       for (int i = 0; i < grid_.spawn_points.size(); ++i) {
-        outcomes[i] = kNumInitiativeChanceOutcomes + i;
+        if (field(grid_.spawn_points[i].first,
+                  grid_.spawn_points[i].second) == '.') {
+          outcomes.push_back(kNumInitiativeChanceOutcomes + i);
+        }
       }
       return outcomes;
     } else {
@@ -404,11 +404,20 @@ std::vector<Action> LaserTagState::LegalActions(int player) const {
 std::vector<std::pair<Action, double>> LaserTagState::ChanceOutcomes() const {
   SPIEL_CHECK_TRUE(IsChanceNode());
   if (!needs_respawn_.empty()) {
-    std::vector<std::pair<Action, double>> outcomes(grid_.spawn_points.size(),
-                                                    {kInvalidAction, -1.0});
-    const double unif_prob = 1.0 / outcomes.size();
+    int num_legal_actions = 0;
     for (int i = 0; i < grid_.spawn_points.size(); ++i) {
-      outcomes[i] = {kNumInitiativeChanceOutcomes + i, unif_prob};
+      if (field(grid_.spawn_points[i].first,
+                grid_.spawn_points[i].second) == '.') {
+        num_legal_actions += 1;
+      }
+    }
+    std::vector<std::pair<Action, double>> outcomes;
+    const double unif_prob = 1.0 / num_legal_actions;
+    for (int i = 0; i < grid_.spawn_points.size(); ++i) {
+      if (field(grid_.spawn_points[i].first,
+                grid_.spawn_points[i].second) == '.') {
+        outcomes.push_back({kNumInitiativeChanceOutcomes + i, unif_prob});
+      }
     }
     return outcomes;
   } else {

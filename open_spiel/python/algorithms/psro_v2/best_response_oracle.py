@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -54,9 +54,9 @@ class BestResponseOracle(optimization_oracle.AbstractOracle):
     if self.best_response_backend == 'cpp':
       # Should compute all_states and state_to_information_state only once in
       # the program, as caching them speeds up TabularBestResponse tremendously.
-      self.all_states, self.state_to_information_state =\
+      self.all_states, self.state_to_information_state = (
           utils.compute_states_and_info_states_if_none(
-              game, all_states, state_to_information_state)
+              game, all_states, state_to_information_state))
 
       policy = openspiel_policy.UniformRandomPolicy(game)
 
@@ -145,11 +145,11 @@ class BestResponseOracle(optimization_oracle.AbstractOracle):
               policy_utils.policy_to_dict(aggr_policy, game, self.all_states,
                                           self.state_to_information_state))
 
-          self.best_responders[current_player] =\
+          self.best_responders[current_player] = (
               best_response.CPPBestResponsePolicy(
                   game, current_player, aggr_policy, self.all_states,
                   self.state_to_information_state,
-                  self.best_response_processors[current_player])
+                  self.best_response_processors[current_player]))
           best_resp = self.best_responders[current_player]
         player_policies.append(best_resp)
       new_policies.append(player_policies)

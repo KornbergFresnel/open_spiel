@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -121,6 +121,17 @@ void CFRAveragePolicy::GetStatePolicyFromInformationStateValues(
     actions_and_probs->push_back({is_vals.legal_actions[aidx],
                                   is_vals.cumulative_policy[aidx] / sum_prob});
   }
+}
+
+TabularPolicy CFRAveragePolicy::AsTabular() const {
+  TabularPolicy policy;
+  for (const auto& infoset_and_entry : info_states_) {
+    ActionsAndProbs state_policy;
+    GetStatePolicyFromInformationStateValues(infoset_and_entry.second,
+                                             &state_policy);
+    policy.SetStatePolicy(infoset_and_entry.first, state_policy);
+  }
+  return policy;
 }
 
 CFRCurrentPolicy::CFRCurrentPolicy(const CFRInfoStateValuesTable& info_states,

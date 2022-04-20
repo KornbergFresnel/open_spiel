@@ -1,6 +1,10 @@
 set(GAME_SOURCES
+  amazons.cc
+  amazons.h
   backgammon.cc
   backgammon.h
+  bargaining.cc
+  bargaining.h
   battleship.cc
   battleship.h
   battleship_types.h
@@ -31,6 +35,9 @@ set(GAME_SOURCES
   clobber.h
   coin_game.cc
   coin_game.h
+  colored_trails.cc
+  colored_trails.h
+  colored_trails/colored_trails_utils.cc
   connect_four.cc
   connect_four.h
   coop_box_pushing.cc
@@ -88,6 +95,10 @@ set(GAME_SOURCES
   mfg/crowd_modelling.h
   mfg/crowd_modelling_2d.cc
   mfg/crowd_modelling_2d.h
+  mfg/garnet.cc
+  mfg/garnet.h
+  morpion_solitaire.cc
+  morpion_solitaire.h
   negotiation.cc
   negotiation.h
   nfg_game.cc
@@ -102,6 +113,8 @@ set(GAME_SOURCES
   oware.h
   oware/oware_board.cc
   oware/oware_board.h
+  pathfinding.cc
+  pathfinding.h
   pentago.cc
   pentago.h
   phantom_ttt.cc
@@ -110,6 +123,8 @@ set(GAME_SOURCES
   pig.h
   quoridor.cc
   quoridor.h
+  rbc.cc
+  rbc.h
   sheriff.cc
   sheriff.h
   skat.cc
@@ -132,6 +147,8 @@ set(GAME_SOURCES
   tiny_hanabi.h
   trade_comm.cc
   trade_comm.h
+  ultimate_tic_tac_toe.h
+  ultimate_tic_tac_toe.cc
   y.cc
   y.h
 )
@@ -223,9 +240,19 @@ add_library(bridge_double_dummy_solver OBJECT
 target_include_directories (bridge_double_dummy_solver PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(bridge_double_dummy_solver PUBLIC DDS_NO_STATIC_INIT)
 
+add_executable(amazons_test amazons_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(amazons_test amazons_test)
+
 add_executable(backgammon_test backgammon_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(backgammon_test backgammon_test)
+
+add_executable(bargaining_instance_generator bargaining_instance_generator.cc
+               ${OPEN_SPIEL_OBJECTS})
+add_executable(bargaining_test bargaining_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(bargaining_test bargaining_test)
 
 add_executable(battleship_test battleship_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
@@ -267,6 +294,14 @@ add_executable(coin_game_test coin_game_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>
                $<TARGET_OBJECTS:algorithms>)
 add_test(coin_game_test coin_game_test)
+
+add_executable(colored_trails_board_generator
+               colored_trails/colored_trails_board_generator.cc
+               ${OPEN_SPIEL_OBJECTS} $<TARGET_OBJECTS:tests>)
+
+add_executable(colored_trails_test colored_trails_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(colored_trails_test colored_trails_test)
 
 add_executable(connect_four_test connect_four_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>
@@ -316,6 +351,10 @@ add_executable(first_sealed_auction_test first_sealed_auction_test.cc
                ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(first_sealed_auction_test first_sealed_auction_test)
+
+add_executable(garnet_test mfg/garnet_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(garnet_test garnet_test)
 
 add_executable(gin_rummy_test gin_rummy_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
@@ -379,6 +418,10 @@ add_executable(matrix_games_test matrix_games_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(matrix_games_test matrix_games_test)
 
+add_executable(morpion_solitaire_test morpion_solitaire_test.cc ${OPEN_SPIEL_OBJECTS}
+        $<TARGET_OBJECTS:tests>)
+add_test(morpion_solitaire_test morpion_solitaire_test)
+
 add_executable(negotiation_test negotiation_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>
                $<TARGET_OBJECTS:algorithms>)
@@ -407,6 +450,10 @@ add_executable(oware_test oware_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:algorithms>)
 add_test(oware_test oware_test)
 
+add_executable(pathfinding_test pathfinding_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(pathfinding_test pathfinding_test)
+
 add_executable(pentago_test pentago_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(pentago_test pentago_test)
@@ -422,6 +469,10 @@ add_test(pig_test pig_test)
 add_executable(quoridor_test quoridor_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(quoridor_test quoridor_test)
+
+add_executable(rbc_test rbc_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(rbc_test rbc_test)
 
 add_executable(sheriff_test sheriff_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
@@ -465,6 +516,10 @@ add_test(tiny_hanabi_test tiny_hanabi_test)
 add_executable(trade_comm_test trade_comm_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(trade_comm_test trade_comm_test)
+
+add_executable(ultimate_tic_tac_toe_test ultimate_tic_tac_toe_test.cc
+               ${OPEN_SPIEL_OBJECTS} $<TARGET_OBJECTS:tests>)
+add_test(ultimate_tic_tac_toe_test ultimate_tic_tac_toe_test)
 
 if (${OPEN_SPIEL_BUILD_WITH_ACPC})
   add_executable(universal_poker_test universal_poker_test.cc ${OPEN_SPIEL_OBJECTS}

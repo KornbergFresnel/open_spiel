@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,19 +14,24 @@
 
 """Python spiel example."""
 
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
 import pickle
+
 from absl import app
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 
 from open_spiel.python import games  # pylint: disable=unused-import
+from open_spiel.python.algorithms import get_all_states
+from open_spiel.python.mfg import games as mfg_games  # pylint:disable=unused-import
 import pyspiel
 from open_spiel.python.utils import file_utils
+# TODO(perolat): add predator_prey in the list of game tested
 
 # Put a bound on length of game so test does not timeout.
 MAX_ACTIONS_PER_GAME = 1000
@@ -105,7 +110,9 @@ class GamesSimTest(parameterized.TestCase):
       game,
       check_pyspiel_serialization=True,
       check_pickle_serialization=True,
-      make_distribution_fn=lambda states: [1 / len(states)] * len(states)):
+      make_distribution_fn=(
+          lambda states: ([1 / len(states)] * len(states) if states else []))
+  ):
     min_utility = game.min_utility()
     max_utility = game.max_utility()
     self.assertLess(min_utility, max_utility)
@@ -122,75 +129,74 @@ class GamesSimTest(parameterized.TestCase):
       self.assertEqual(game.get_type(), unpickled_game_type)
 
     # Get a new state
-    state = game.new_initial_state()
-    total_actions = 0
+    for state in game.new_initial_states():
+      total_actions = 0
 
-    next_serialize_check = 1
+      next_serialize_check = 1
 
-    while not state.is_terminal() and total_actions <= MAX_ACTIONS_PER_GAME:
-      total_actions += 1
+      while not state.is_terminal() and total_actions <= MAX_ACTIONS_PER_GAME:
+        total_actions += 1
 
-      # Serialize/Deserialize is costly. Only do it every power of 2 actions.
-      if total_actions >= next_serialize_check:
-        self.serialize_deserialize(game, state, check_pyspiel_serialization,
-                                   check_pickle_serialization)
-        next_serialize_check *= 2
+        # Serialize/Deserialize is costly. Only do it every power of 2 actions.
+        if total_actions >= next_serialize_check:
+          self.serialize_deserialize(game, state, check_pyspiel_serialization,
+                                     check_pickle_serialization)
+          next_serialize_check *= 2
 
-      # The state can be four different types: chance node,
-      # mean-field-game node, simultaneous node, or decision node
-      if state.is_chance_node():
-        # Chance node: sample an outcome
-        outcomes = state.chance_outcomes()
-        self.assertNotEmpty(outcomes)
-        action_list, prob_list = zip(*outcomes)
-        action = np.random.choice(action_list, p=prob_list)
-        state.apply_action(action)
-      elif state.is_simultaneous_node():
-        # Simultaneous node: sample actions for all players
-        chosen_actions = []
-        for pid in range(game.num_players()):
-          legal_actions = state.legal_actions(pid)
-          action = 0 if not legal_actions else np.random.choice(legal_actions)
-          chosen_actions.append(action)
-        # Apply the joint action and test cloning states.
-        self.apply_action_test_clone(state, chosen_actions)
-      elif state.is_mean_field_node():
-        self.assertEqual(game.get_type().dynamics,
-                         pyspiel.GameType.Dynamics.MEAN_FIELD)
-        state.update_distribution(
-            make_distribution_fn(state.distribution_support()))
+        # The state can be four different types: chance node,
+        # mean-field-game node, simultaneous node, or decision node
+        if state.is_chance_node():
+          # Chance node: sample an outcome
+          outcomes = state.chance_outcomes()
+          self.assertNotEmpty(outcomes)
+          action_list, prob_list = zip(*outcomes)
+          action = np.random.choice(action_list, p=prob_list)
+          state.apply_action(action)
+        elif state.is_simultaneous_node():
+          # Simultaneous node: sample actions for all players
+          chosen_actions = []
+          for pid in range(game.num_players()):
+            legal_actions = state.legal_actions(pid)
+            action = 0 if not legal_actions else np.random.choice(legal_actions)
+            chosen_actions.append(action)
+          # Apply the joint action and test cloning states.
+          self.apply_action_test_clone(state, chosen_actions)
+        elif state.is_mean_field_node():
+          self.assertEqual(game.get_type().dynamics,
+                           pyspiel.GameType.Dynamics.MEAN_FIELD)
+          state.update_distribution(
+              make_distribution_fn(state.distribution_support()))
+        else:
+          self.assertTrue(state.is_player_node())
+          # Decision node: sample action for the single current player
+          action = np.random.choice(state.legal_actions(state.current_player()))
+          # Apply action and test state cloning.
+          self.apply_action_test_clone(state, action)
+
+      # Max sure at least one action was made.
+      self.assertGreater(total_actions, 0,
+                         "No actions taken in sim of " + str(game))
+
+      # Either the game is now done, or the maximum actions has been taken.
+      if state.is_terminal():
+        # Check there are no legal actions.
+        self.assertEmpty(state.legal_actions())
+        for player in range(game.num_players()):
+          self.assertEmpty(state.legal_actions(player))
+        # Print utilities for each player.
+        utilities = state.returns()
+        # Check that player returns are correct
+        for player in range(game.num_players()):
+          self.assertEqual(state.player_return(player), utilities[player])
+        # Check that each one is in range
+        for utility in utilities:
+          self.assertGreaterEqual(utility, game.min_utility())
+          self.assertLessEqual(utility, game.max_utility())
+        print("Sim of game {} terminated with {} total actions. Utilities: {}"
+              .format(game, total_actions, utilities))
       else:
-        self.assertTrue(state.is_player_node())
-        # Decision node: sample action for the single current player
-        action = np.random.choice(state.legal_actions(state.current_player()))
-        # Apply action and test state cloning.
-        self.apply_action_test_clone(state, action)
-
-    # Max sure at least one action was made.
-    self.assertGreater(total_actions, 0,
-                       "No actions taken in sim of " + str(game))
-
-    # Either the game is now done, or the maximum actions has been taken.
-    if state.is_terminal():
-      # Check there are no legal actions.
-      self.assertEmpty(state.legal_actions())
-      for player in range(game.num_players()):
-        self.assertEmpty(state.legal_actions(player))
-      # Print utilities for each player.
-      utilities = state.returns()
-      # Check that player returns are correct
-      for player in range(game.num_players()):
-        self.assertEqual(state.player_return(player), utilities[player])
-      # Check that each one is in range
-      for utility in utilities:
-        self.assertGreaterEqual(utility, game.min_utility())
-        self.assertLessEqual(utility, game.max_utility())
-      print("Sim of game {} terminated with {} total actions. Utilities: {}"
-            .format(game, total_actions, utilities))
-    else:
-      print(
-          "Sim of game {} terminated after maximum number of actions {}".format(
-              game, MAX_ACTIONS_PER_GAME))
+        print("Sim of game {} terminated after maximum number of actions {}"
+              .format(game, MAX_ACTIONS_PER_GAME))
 
   @parameterized.named_parameters((game_info.short_name, game_info)
                                   for game_info in SPIEL_LOADABLE_GAMES_LIST)
@@ -210,7 +216,15 @@ class GamesSimTest(parameterized.TestCase):
   @parameterized.named_parameters((f"{p}p_{g.short_name}", g, p)
                                   for g, p in SPIEL_MULTIPLAYER_GAMES_LIST)
   def test_multiplayer_game(self, game_info, num_players):
-    game = pyspiel.load_game(game_info.short_name, {"players": num_players})
+    if game_info.short_name == "python_mfg_predator_prey":
+      reward_matrix = np.ones((num_players, num_players))
+      dict_args = {
+          "players": num_players,
+          "reward_matrix": " ".join(str(v) for v in reward_matrix.flatten())
+      }
+    else:
+      dict_args = {"players": num_players}
+    game = pyspiel.load_game(game_info.short_name, dict_args)
     self.sim_game(game)
 
   def test_breakthrough(self):
@@ -297,6 +311,61 @@ class GamesSimTest(parameterized.TestCase):
                             not checker_moves[1].hit)
         action = np.random.choice(legal_actions)
         state.apply_action(action)
+
+  def test_leduc_get_and_set_private_cards(self):
+    game = pyspiel.load_game("leduc_poker")
+    state = game.new_initial_state()
+    state.apply_action(0)   # give player 0 jack of first suit
+    state.apply_action(1)   # give player 1 jack of second suit
+    # check that we can retrieve those cards
+    print(state)
+    private_cards = state.get_private_cards()
+    self.assertEqual(private_cards, [0, 1])
+    # now give them queens instead, get them again, and check that it worked
+    state.set_private_cards([2, 3])
+    print(state)
+    private_cards = state.get_private_cards()
+    self.assertEqual(private_cards, [2, 3])
+
+  @parameterized.parameters(
+      {"game_name": "blotto"},
+      {"game_name": "goofspiel"},
+      {"game_name": "kuhn_poker"},
+      {"game_name": "tiny_hanabi"},
+      {"game_name": "phantom_ttt"},
+      {"game_name": "matrix_rps"},
+      {"game_name": "kuhn_poker"},
+  )
+  def test_restricted_nash_response_test(self, game_name):
+    rnr_game = pyspiel.load_game(
+        f"restricted_nash_response(game={game_name}())")
+    for _ in range(10):
+      self.sim_game(rnr_game, check_pyspiel_serialization=False,
+                    check_pickle_serialization=False)
+
+# TODO(perolat): find the list of games where it is reasonable to call
+# get_all_states
+  @parameterized.parameters(
+      {"game_name": "python_mfg_crowd_modelling"},
+      {"game_name": "mfg_crowd_modelling"},
+      {"game_name": "mfg_crowd_modelling_2d"},
+      {"game_name": "kuhn_poker"},
+      {"game_name": "leduc_poker"},
+  )
+  def test_has_at_least_an_action(self, game_name):
+    """Check that all population's state have at least one action."""
+    game = pyspiel.load_game(game_name)
+    to_string = lambda s: s.observation_string(pyspiel.PlayerId.
+                                               DEFAULT_PLAYER_ID)
+    states = get_all_states.get_all_states(
+        game,
+        depth_limit=-1,
+        include_terminals=False,
+        include_chance_states=False,
+        include_mean_field_states=False,
+        to_string=to_string)
+    for state in states.values():
+      self.assertNotEmpty(state.legal_actions())
 
 
 def main(_):

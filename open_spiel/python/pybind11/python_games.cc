@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -45,6 +45,12 @@ std::unique_ptr<State> PyGame::NewInitialStateForPopulation(
   PYBIND11_OVERLOAD_PURE_NAME(std::unique_ptr<State>, Game,
                               "new_initial_state_for_population",
                               NewInitialStateForPopulation, population);
+}
+
+int PyGame::MaxChanceNodesInHistory() const {
+  PYBIND11_OVERLOAD_PURE_NAME(int, Game,
+                              "max_chance_nodes_in_history",
+                              MaxChanceNodesInHistory);
 }
 
 const Observer& PyGame::default_observer() const {
@@ -140,6 +146,15 @@ std::unique_ptr<State> PyState::Clone() const {
   return rv;
 }
 
+std::vector<std::string> PyState::DistributionSupport() {
+  PYBIND11_OVERLOAD_PURE_NAME(std::vector<std::string>, State,
+                              "distribution_support", DistributionSupport);
+}
+void PyState::UpdateDistribution(const std::vector<double>& distribution) {
+  PYBIND11_OVERLOAD_PURE_NAME(void, State, "update_distribution",
+                              UpdateDistribution, distribution);
+}
+
 // Register a Python game.
 void RegisterPyGame(const GameType& game_type, py::function creator) {
   GameRegisterer::RegisterGame(
@@ -192,8 +207,8 @@ void PyObserver::WriteTensor(const State& state, int player,
     const int dims = a.ndim();
     absl::InlinedVector<int, 4> shape(dims);
     for (int i = 0; i < dims; ++i) shape[i] = a.shape(i);
-    auto out = allocator->Get(k.cast<std::string>(), shape);
-    std::copy(a.data(), a.data() + a.size(), out.data.data());
+    SpanTensor out = allocator->Get(k.cast<std::string>(), shape);
+    std::copy(a.data(), a.data() + a.size(), out.data().begin());
   }
 }
 
@@ -238,16 +253,15 @@ void PyState::InformationStateTensor(Player player,
 
 namespace {
 std::vector<int> TensorShape(const TrackingVectorAllocator& allocator) {
-  switch (allocator.tensors.size()) {
+  switch (allocator.tensors_info().size()) {
     case 0:
       return {};
     case 1:
-      return allocator.tensors.front().shape;
+      return allocator.tensors_info().front().vector_shape();
     default: {
       int size = 0;
-      for (auto tensor : allocator.tensors) {
-        size += std::accumulate(tensor.shape.begin(), tensor.shape.end(), 1,
-                                std::multiplies<int>());
+      for (const auto& info : allocator.tensors_info()) {
+        size += info.size();
       }
       return {size};
     }

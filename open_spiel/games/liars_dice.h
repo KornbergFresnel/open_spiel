@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "open_spiel/spiel.h"
+#include "open_spiel/spiel_utils.h"
 
 // A simple game that includes chance and imperfect information
 // https://en.wikipedia.org/wiki/Liar%27s_dice
@@ -77,6 +78,18 @@ class LiarsDiceState : public State {
   // Return number of sides on the dice.
   const int dice_sides() const;
 
+  Player calling_player() const { return calling_player_; }
+  int dice_outcome(Player player, int index) const {
+    return dice_outcomes_[player][index];
+  }
+  int last_bid() const {
+    if (bidseq_.back() == total_num_dice_ * dice_sides()) {
+      return bidseq_[bidseq_.size() - 2];
+    } else {
+      return bidseq_.back();
+    }
+  }
+
  protected:
   void DoApplyAction(Action action_id) override;
 
@@ -85,10 +98,10 @@ class LiarsDiceState : public State {
   // The bids starts at 0 and go to total_dice*dice_sides-1 (inclusive).
   std::pair<int, int> UnrankBid(int bid) const;
 
-  // Dice outcomes: first indexed by player, then sorted by outcome.
+  // Dice outcomes: first indexed by player, then by dice number
   std::vector<std::vector<int>> dice_outcomes_;
 
-  // Theh bid sequence.
+  // The bid sequence.
   std::vector<int> bidseq_;
 
  private:

@@ -1,10 +1,10 @@
-# Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+# Copyright 2019 DeepMind Technologies Limited
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,8 +20,10 @@ from absl.testing import parameterized
 
 import numpy as np
 
+from open_spiel.python import games  # pylint:disable=unused-import
 from open_spiel.python import policy
 from open_spiel.python.algorithms import best_response
+from open_spiel.python.algorithms import expected_game_score
 from open_spiel.python.algorithms import get_all_states
 import pyspiel
 
@@ -70,7 +72,6 @@ class BestResponseTest(parameterized.TestCase, absltest.TestCase):
         if state.current_player() != current_player:
           continue
 
-        # TODO(b/141737795): Decide what to do about this.
         self.assertEqual(
             python_br.action_probabilities(state), {
                 a: prob
@@ -116,6 +117,62 @@ class BestResponseTest(parameterized.TestCase, absltest.TestCase):
       value_cpp_backend = best_resp_cpp_backend.value(root_state)
 
       self.assertTrue(np.allclose(value_py_backend, value_cpp_backend))
+
+  def test_best_response_tic_tac_toe_value_is_consistent(self):
+    # This test was failing because of use of str(state) in the best response,
+    # which is imperfect recall. We now use state.history_str() throughout.
+
+    # Chose a policy at random; not the uniform random policy.
+    game = pyspiel.load_game("tic_tac_toe")
+    pi = policy.TabularPolicy(game)
+    rng = np.random.RandomState(1234)
+    pi.action_probability_array[:] = rng.rand(*pi.legal_actions_mask.shape)
+    pi.action_probability_array *= pi.legal_actions_mask
+    pi.action_probability_array /= np.sum(
+        pi.action_probability_array, axis=1, keepdims=True)
+
+    # Compute a best response and verify the best response value is consistent.
+    br = best_response.BestResponsePolicy(game, 1, pi)
+    self.assertAlmostEqual(
+        expected_game_score.policy_value(game.new_initial_state(), [pi, br])[1],
+        br.value(game.new_initial_state()))
+
+  def test_best_response_oshi_zumo_simultaneous_game(self):
+    """Test best response computation for simultaneous game."""
+    game = pyspiel.load_game("oshi_zumo(horizon=5,coins=5)")
+    test_policy = policy.UniformRandomPolicy(game)
+    br = best_response.BestResponsePolicy(game, policy=test_policy, player_id=0)
+    expected_policy = {
+        "0, 0, 0, 3, 0, 2": 1,
+        "0, 0, 1, 4, 3, 1": 0,
+        "0, 0, 4, 1, 0, 2, 0, 2": 1,
+        "0, 1, 1, 0, 1, 4": 1,
+        "0, 1, 4, 1, 0, 0, 0, 1": 1,
+        "0, 2, 2, 2, 3, 0, 0, 0": 0,
+        "0, 5, 0, 0, 0, 0, 3, 0": 1
+    }
+    self.assertEqual(
+        expected_policy,
+        {key: br.best_response_action(key) for key in expected_policy})
+    self.assertAlmostEqual(br.value(game.new_initial_state()), 0.856471051954)
+
+  def test_best_response_prisoner_dilemma_simultaneous_game(self):
+    """Test best response computation for simultaneous game."""
+    game = pyspiel.load_game(
+        "python_iterated_prisoners_dilemma(max_game_length=5)")
+    test_policy = policy.UniformRandomPolicy(game)
+    br = best_response.BestResponsePolicy(game, policy=test_policy, player_id=0)
+
+    # Best policy is always to defect; we verify this for a handful of states
+    self.assertEqual(br.best_response_action("us:CCCC op:CCCC"), 1)
+    self.assertEqual(br.best_response_action("us:DDDD op:CCCC"), 1)
+    self.assertEqual(br.best_response_action("us:CDCD op:DCDC"), 1)
+    self.assertEqual(br.best_response_action("us:CCCC op:DDDD"), 1)
+
+    # Expected value per turn = 5.5 (avg of 1 and 10)
+    # Expected game length = sum(0.875**i for i in range(5)) = 3.896728515625
+    # Game value = 5.5 * 3.896728515625 = 21.4320068359375
+    self.assertAlmostEqual(br.value(game.new_initial_state()), 21.4320068359375)
 
 
 if __name__ == "__main__":

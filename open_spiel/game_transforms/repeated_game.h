@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,7 +23,14 @@
 #include "open_spiel/spiel.h"
 
 // Transform for creating a repeated game from a normal-form game.
-// https://en.wikipedia.org/wiki/Repeated_game
+// https://en.wikipedia.org/wiki/Repeated_game.
+//
+// Parameters:
+//   "enable_infostate"   bool     Enable the sequence of round outcomes as the
+//                                 information state tensor (default: false).
+//   "stage_game"         game     The game that will be repeated.
+//   "num_repititions"    int      Number of times that the game is repeated.
+
 
 namespace open_spiel {
 
@@ -41,6 +48,8 @@ class RepeatedState : public SimMoveState {
   std::vector<double> Rewards() const override;
   std::vector<double> Returns() const override;
   std::string ObservationString(Player player) const override;
+  void InformationStateTensor(Player player,
+                              absl::Span<float> values) const override;
   void ObservationTensor(Player player,
                          absl::Span<float> values) const override;
   std::unique_ptr<State> Clone() const override;
@@ -50,6 +59,9 @@ class RepeatedState : public SimMoveState {
   void DoApplyActions(const std::vector<Action>& actions) override;
 
  private:
+  void ObliviousObservationTensor(Player player,
+                                  absl::Span<float> values) const;
+
   std::shared_ptr<const Game> stage_game_;
   // Store a reference initial state of the stage game for efficient calls
   // to state functions (e.g. LegalActions()).
@@ -75,7 +87,10 @@ class RepeatedGame : public SimMoveGame {
   double MaxUtility() const override {
     return stage_game_->MaxUtility() * num_repetitions_;
   }
+  std::vector<int> InformationStateTensorShape() const override;
   std::vector<int> ObservationTensorShape() const override;
+
+  const Game* StageGame() const { return stage_game_.get(); }
 
  private:
   std::shared_ptr<const Game> stage_game_;

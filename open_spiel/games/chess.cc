@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2019 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -148,6 +148,9 @@ Color PlayerToColor(Player p) {
 }
 
 Action MoveToAction(const Move& move, int board_size) {
+  // Special-case for pass move.
+  if (move == kPassMove) return kPassAction;
+
   Color color = move.piece.color;
   // We rotate the move to be from player p's perspective.
   Move player_move(move);
@@ -196,7 +199,7 @@ Action MoveToAction(const Move& move, int board_size) {
       auto itr = absl::c_find_if(
           kUnderPromotionDirectionToOffset,
           [offset](Offset o) { return o.x_offset == offset.x_offset; });
-      SPIEL_CHECK_NE(itr, kUnderPromotionDirectionToOffset.end());
+      SPIEL_CHECK_TRUE(itr != kUnderPromotionDirectionToOffset.end());
       direction_index =
           std::distance(kUnderPromotionDirectionToOffset.begin(), itr);
     }
@@ -228,6 +231,11 @@ std::pair<Square, int> ActionToDestination(int action, int board_size,
 Move ActionToMove(const Action& action, const ChessBoard& board) {
   SPIEL_CHECK_GE(action, 0);
   SPIEL_CHECK_LT(action, NumDistinctActions());
+
+  // Some chess variants (e.g. RBC) allow pass moves.
+  if (board.AllowPassMove() && action == kPassAction) {
+    return kPassMove;
+  }
 
   // The encoded action represents an action encoded from color's perspective.
   Color color = board.ToPlay();

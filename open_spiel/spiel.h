@@ -1,10 +1,10 @@
-// Copyright 2019 DeepMind Technologies Ltd. All rights reserved.
+// Copyright 2021 DeepMind Technologies Limited
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -68,7 +68,12 @@ struct GameType {
   // Either all possible chance outcomes are explicitly returned as
   // ChanceOutcomes(), and the result of ApplyAction() is deterministic. Or
   // just one ChanceOutcome is returned, and the result of ApplyAction() is
-  // stochastic.
+  // stochastic. If in doubt, it is better to implement stochastic games with
+  // kExplicitStochastic, as this makes more information available to any
+  // learning algorithms you choose to use (i.e. the whole chance outcome
+  // distribution is visible to the algorithm, rather than just the sampled
+  // outcome). For more discussion of this field, see the github issue:
+  // https://github.com/deepmind/open_spiel/issues/792.
   enum class ChanceMode {
     kDeterministic,       // No chance nodes
     kExplicitStochastic,  // Has at least one chance node, all with
@@ -136,6 +141,15 @@ struct GameType {
   // This is similar to observation fields before, but adds additional
   // distinction between public and private observations.
   bool provides_factored_observation_string = false;
+
+  bool provides_information_state() const {
+    return provides_information_state_tensor
+        || provides_information_state_string;
+  }
+  bool provides_observation() const {
+    return provides_observation_tensor
+        || provides_observation_string;
+  }
 };
 
 // Information about a concrete Game instantiation.
@@ -224,6 +238,9 @@ class State {
   //
   // Games should implement DoApplyAction.
   virtual void ApplyAction(Action action_id);
+
+  // Helper versions of ApplyAction that first does a legality check.
+  virtual void ApplyActionWithLegalityCheck(Action action_id);
 
   // `LegalActions(Player player)` is valid for all nodes in all games,
   // returning an empty list for players who don't act at this state. The
@@ -571,6 +588,10 @@ class State {
   // Simultaneous games should implement DoApplyActions.
   void ApplyActions(const std::vector<Action>& actions);
 
+  // A helper version of ApplyActions that first does legality checks.
+  void ApplyActionsWithLegalityChecks(const std::vector<Action>& actions);
+
+
   // The size of the action space. See `Game` for a full description.
   int NumDistinctActions() const { return num_distinct_actions_; }
 
@@ -674,6 +695,8 @@ class State {
   // representation. In multi-population mean field nodes, the support will
   // typically include states for all the populations.
   // This should only be called when when CurrentPlayer() == kMeanFieldPlayerId.
+  // This can return an empty list in case the distribution is not needed at
+  // this time.
   virtual std::vector<std::string> DistributionSupport() {
     SpielFatalError("DistributionSupport has not been implemented");
   }
@@ -1134,6 +1157,12 @@ std::vector<std::string> ActionsToStrings(const State& state,
 // strings together.
 std::string ActionsToString(const State& state,
                             const std::vector<Action>& actions);
+
+// A utility to broadcast an error message with game and state info.
+// It is a wrapper around SpielFatalError and meant to facilitate debugging.
+void SpielFatalErrorWithStateInfo(const std::string& error_msg,
+                                  const Game& game,
+                                  const State& state);
 
 }  // namespace open_spiel
 
